@@ -35,6 +35,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
   });
 
   const canDelete = currentUser?.role === 'Admin' || currentUser?.role === 'Supervisor';
+  const canManage = canDelete;
 
   // Custom manual folders loaded from server
   const [customFoldersList, setCustomFoldersList] = useState<{ id: number; category: string; sub_category?: string }[]>([]);
@@ -80,6 +81,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
   const [subFolderChoice, setSubFolderChoice] = useState<'none' | 'existing' | 'new'>('none');
   const [selectedSubFolder, setSelectedSubFolder] = useState('');
   const [newSubFolder, setNewSubFolder] = useState('');
+  const [bulkStatus, setBulkStatus] = useState<'uploaded' | 'not uploaded'>('uploaded');
 
   // Form State (for fallback / manual single-video entries)
   const [name, setName] = useState('');
@@ -119,16 +121,27 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
   const [multiMoveSubCategorySelect, setMultiMoveSubCategorySelect] = useState('');
 
   // Extract dynamical list of sub-folders belonging directly to the active category
+  const effectiveCategory = isCreatingNewFolder ? customFolder.trim() : category;
   const subFoldersForCategory = Array.from(
     new Set([
-      ...videos.filter(v => v.category === category).map(v => v.sub_category || ''),
-      ...customFoldersList.filter(f => f.category === category).map(f => f.sub_category || '')
+      ...videos.filter(v => v.category === effectiveCategory).map(v => v.sub_category || ''),
+      ...customFoldersList.filter(f => f.category === effectiveCategory).map(f => f.sub_category || '')
     ].filter(Boolean))
   ).sort((a, b) => a.localeCompare(b));
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Auto-dismiss notifications so they don't block the upload panel
+  useEffect(() => {
+    if (!successMsg && !errorMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+      setErrorMsg(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [successMsg, errorMsg]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -306,6 +319,12 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
     setUniqueCode('');
     setDuration(5.0);
     setStatus('not uploaded');
+    setBulkStatus('uploaded');
+    setSubFolderChoice('none');
+    setSelectedSubFolder('');
+    setNewSubFolder('');
+    setIsCreatingNewFolder(false);
+    setCustomFolder('');
     setErrorMsg(null);
     setSuccessMsg(null);
     if (fileInputRef.current) {
@@ -350,6 +369,10 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
   };
 
   const handleDeleteCustomFolder = async (id: number) => {
+    if (!canManage) {
+      setFolderError('Permission Denied: Only Administrators and Supervisors can delete folder structures.');
+      return;
+    }
     setFolderError(null);
     setFolderSuccess(null);
     try {
@@ -490,9 +513,9 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
             name: item.name.trim(),
             unique_code: assignedCode,
             duration: item.duration,
-            status: item.status,
+            status: bulkStatus,
             category: folderToSave,
-            sub_category: finalSubCategory ? finalSubCategory : (item.sub_category ? item.sub_category.trim() : '')
+            sub_category: finalSubCategory
           })
         });
 
@@ -511,6 +534,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
       setSubFolderChoice('none');
       setSelectedSubFolder('');
       setNewSubFolder('');
+      setBulkStatus('uploaded');
       onRefresh();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error executing batch pipeline write.');
@@ -566,7 +590,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
   // Batch delete selections (Admin/Supervisor validation on frontend + backend)
   const handleBulkDelete = async () => {
     if (!canDelete) {
-      setErrorMsg('Permission Denied: Only Administrators and Supervisors have video deletion authority.');
+      setErrorMsg('Permission Denied: Only Administrators and Supervisors can delete videos.');
       return;
     }
 
@@ -832,334 +856,250 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN: UPLOAD CONTROLS & MANUAL REGISTERS */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col h-[480px] min-h-0">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col relative">
             <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-400 mb-4 flex items-center gap-2 shrink-0">
               <UploadCloud className="h-5 w-5" />
               File Ingestion Hub
             </h3>
 
-            {/* Drag & Drop Stage Dropzone */}
-            <div className="shrink-0 mb-4">
-            <div 
-              className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-                dragActive 
-                  ? 'border-indigo-500 bg-indigo-950/20' 
-                  : 'border-slate-800 bg-slate-950/20 hover:border-slate-700 hover:bg-slate-950/40'
-              }`}
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              onClick={triggerFileSelect}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="video/*"
-                multiple
-                onChange={handleFileChange}
-              />
-              <UploadCloud className={`h-8 w-8 mb-2 mx-auto transition-colors ${stagedVideos.length > 0 ? 'text-indigo-400' : 'text-slate-500'}`} />
-              
-              {stagedVideos.length > 0 ? (
-                <div>
-                  <p className="text-xs font-bold text-slate-200">Load additional videos...</p>
-                  <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">{stagedVideos.length} Staged Item{stagedVideos.length === 1 ? '' : 's'}</span>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-xs font-bold text-slate-300">Drag & drop video(s) here</p>
-                  <p className="text-[10px] text-slate-500 mt-1">or click to browse local storage</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {stagedVideos.length > 0 ? (
-            <form onSubmit={handleBulkSubmit} className="flex-1 flex flex-col overflow-hidden min-h-0 space-y-4">
-              <div className="bg-slate-950/40 border border-slate-800 p-3.5 rounded-xl space-y-3.5 shrink-0">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Folder className="h-3.5 w-3.5 text-indigo-400" />
-                    Target Workspace Folder
-                  </label>
+            {/* Floating toast — does not push form content down */}
+            {(errorMsg || successMsg) && (
+              <div className="absolute top-3 right-3 left-3 z-20 flex justify-end pointer-events-none">
+                <div
+                  className={`pointer-events-auto max-w-sm px-3 py-2 rounded-lg border text-[11px] flex items-start gap-2 shadow-lg ${
+                    errorMsg
+                      ? 'bg-red-950/95 border-red-900/50 text-red-300'
+                      : 'bg-emerald-950/95 border-emerald-900/50 text-emerald-300'
+                  }`}
+                >
+                  {errorMsg ? <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> : <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                  <span className="flex-1">{errorMsg || successMsg}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsCreatingNewFolder(!isCreatingNewFolder);
-                      setSubFolderChoice('none');
-                    }}
-                    className="text-[9px] text-indigo-400 hover:text-indigo-300 font-bold uppercase transition-colors"
+                    onClick={() => { setErrorMsg(null); setSuccessMsg(null); }}
+                    className="text-slate-400 hover:text-white shrink-0 cursor-pointer"
                   >
-                    {isCreatingNewFolder ? 'Choose Existing' : '+ New Folder'}
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-
-                {isCreatingNewFolder ? (
-                  <div className="space-y-1">
-                    <input
-                      type="text"
-                      value={customFolder}
-                      onChange={(e) => setCustomFolder(e.target.value)}
-                      placeholder="Enter new folder name..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                      maxLength={50}
-                      required
-                    />
-                    <p className="text-[9px] text-slate-500 font-medium">Creating a brand new parent directory</p>
-                  </div>
-                ) : (
-                  <select
-                    value={category}
-                    onChange={(e) => {
-                      if (e.target.value === '__NEW__') {
-                        setIsCreatingNewFolder(true);
-                        setCategory('');
-                      } else {
-                        setCategory(e.target.value);
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 bg-none cursor-pointer"
-                  >
-                    {folderOptions.map((fold) => (
-                      <option key={fold} value={fold} className="bg-slate-900">{fold}</option>
-                    ))}
-                    <option value="__NEW__" className="bg-slate-900 text-indigo-450 font-bold">+ Create New Folder...</option>
-                  </select>
-                )}
-
-                {/* CENTRALIZED SUB-FOLDER OPTION */}
-                <div className="pt-2.5 border-t border-slate-850 space-y-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Place Inside Sub-folder?
-                  </label>
-
-                  <div className="grid grid-cols-3 gap-1.5 text-[9px] font-bold uppercase">
-                    <button
-                      type="button"
-                      onClick={() => setSubFolderChoice('none')}
-                      className={`py-1.5 px-0.5 rounded border text-center transition-all cursor-pointer ${
-                        subFolderChoice === 'none'
-                          ? 'bg-indigo-600/20 border-indigo-505 border-indigo-500 text-indigo-400 font-bold'
-                          : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-805 hover:border-slate-800'
-                      }`}
-                    >
-                      Directly
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isCreatingNewFolder || subFoldersForCategory.length === 0}
-                      onClick={() => setSubFolderChoice('existing')}
-                      className={`py-1.5 px-0.5 rounded border text-center transition-all ${
-                        subFolderChoice === 'existing'
-                          ? 'bg-indigo-600/20 border-indigo-505 border-indigo-500 text-indigo-400 font-bold cursor-pointer'
-                          : isCreatingNewFolder || subFoldersForCategory.length === 0
-                          ? 'bg-slate-950/20 border-slate-850/20 text-slate-600 cursor-not-allowed select-none'
-                          : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-805 hover:border-slate-800 cursor-pointer'
-                      }`}
-                      title={isCreatingNewFolder || subFoldersForCategory.length === 0 ? "No existing subfolders inside this parent folder" : "Select an existing sub-folder"}
-                    >
-                      Existing
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSubFolderChoice('new')}
-                      className={`py-1.5 px-0.5 rounded border text-center transition-all cursor-pointer ${
-                        subFolderChoice === 'new'
-                          ? 'bg-indigo-600/20 border-indigo-505 border-indigo-500 text-indigo-400 font-bold'
-                          : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-805 hover:border-slate-800'
-                      }`}
-                    >
-                      New Sub
-                    </button>
-                  </div>
-
-                  {/* Existing Sub-folder Dropdown */}
-                  {subFolderChoice === 'existing' && !isCreatingNewFolder && subFoldersForCategory.length > 0 && (
-                    <div className="space-y-1">
-                      <select
-                        value={selectedSubFolder}
-                        onChange={(e) => setSelectedSubFolder(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
-                        required
-                      >
-                        <option value="" className="text-slate-500">-- Select Existing Sub-folder --</option>
-                        {subFoldersForCategory.map((sub) => (
-                          <option key={sub} value={sub} className="bg-slate-900">{sub}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* New Sub-folder Input */}
-                  {subFolderChoice === 'new' && (
-                    <div className="space-y-1">
-                      <input
-                        type="text"
-                        value={newSubFolder}
-                        onChange={(e) => setNewSubFolder(e.target.value)}
-                        placeholder="Type sub-folder name..."
-                        className="w-full bg-slate-950 border border-slate-850 hover:border-slate-805 rounded px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                        maxLength={50}
-                        required
-                      />
-                    </div>
-                  )}
-                </div>
               </div>
+            )}
 
-              {/* Scrollable grid queue containing duplicate selectors */}
-              <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 min-h-0 bg-slate-950/15 p-1 rounded-xl">
-                {stagedVideos.map((item, index) => (
-                  <div key={item.id} className="relative bg-slate-950/50 border border-slate-850 hover:border-slate-800 rounded-xl p-3 space-y-2 transition-colors">
-                    
-                    {/* Header bar and indicators */}
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-850/50 pb-1.5">
-                      <div className="min-w-0">
-                        <span className="text-[9px] font-mono text-indigo-400 uppercase font-black tracking-widest block">Staged File #{index + 1}</span>
-                        <p className="text-[11px] font-medium text-slate-350 truncate max-w-[190px]" title={item.fileName}>
-                          {item.fileName}
-                        </p>
+            {/* STEP 1: Upload / drag zone — always visible */}
+            <div className="shrink-0 mb-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                Step 1 · Add video files
+              </p>
+              <div
+                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                  dragActive
+                    ? 'border-indigo-500 bg-indigo-950/20'
+                    : 'border-slate-800 bg-slate-950/20 hover:border-slate-700 hover:bg-slate-950/40'
+                }`}
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                onClick={triggerFileSelect}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="video/*"
+                  multiple
+                  onChange={handleFileChange}
+                />
+                <UploadCloud className={`h-10 w-10 mb-3 mx-auto transition-colors ${stagedVideos.length > 0 ? 'text-indigo-400' : 'text-slate-500'}`} />
+                <p className="text-sm font-bold text-slate-200">Drag & drop video(s) here</p>
+                <p className="text-xs text-slate-500 mt-1">or click to browse your computer</p>
+                {stagedVideos.length > 0 && (
+                  <p className="text-[11px] text-indigo-400 font-bold mt-3 uppercase tracking-wider">
+                    {stagedVideos.length} file{stagedVideos.length === 1 ? '' : 's'} ready — configure below
+                  </p>
+                )}
+              </div>
+            </div>
+
+          {stagedVideos.length > 0 ? (
+            <form onSubmit={handleBulkSubmit} className="flex flex-col space-y-4 min-h-0">
+              {/* Staged files list — compact preview */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Staged files ({stagedVideos.length})
+                </p>
+                <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1 rounded-xl border border-slate-850 bg-slate-950/30 p-2">
+                  {stagedVideos.map((item, index) => (
+                    <div key={item.id} className="bg-slate-950/60 border border-slate-850 rounded-lg p-2.5 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[9px] font-mono text-indigo-400 uppercase font-black">#{index + 1}</span>
+                          <p className="text-[11px] text-slate-400 truncate" title={item.fileName}>{item.fileName}</p>
+                        </div>
+                        <button type="button" onClick={() => removeStagedItem(item.id)} className="text-slate-500 hover:text-red-400 p-0.5 cursor-pointer">
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeStagedItem(item.id)}
-                        className="text-slate-500 hover:text-red-400 p-0.5 rounded transition-colors cursor-pointer"
-                        title="Deselect item"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {/* Staged Form details */}
-                    <div className="space-y-2 text-xs">
-                      <div>
-                        <label className="block text-[9px] uppercase font-bold tracking-wider text-slate-500 mb-0.5">Display Title</label>
+                      <div className="grid grid-cols-2 gap-2">
                         <input
                           type="text"
                           value={item.name}
                           onChange={(e) => updateStagedItem(item.id, { name: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none"
+                          placeholder="Title"
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                          required
+                        />
+                        <input
+                          type="text"
+                          value={item.unique_code}
+                          onChange={(e) => updateStagedItem(item.id, { unique_code: e.target.value })}
+                          placeholder="Code"
+                          className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono uppercase text-indigo-300 focus:outline-none focus:border-indigo-500"
                           required
                         />
                       </div>
-
-                      {/* Duplicate Handler Settings */}
                       {item.isDuplicate && (
-                        <div className="p-2 bg-amber-950/20 border border-amber-900/30 rounded-lg space-y-1.5">
-                          <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1 font-mono uppercase">
-                            ⚠️ Repeated video detected
-                          </span>
-                          <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-1 cursor-pointer text-[10px] font-semibold text-slate-350 select-none">
-                              <input
-                                type="radio"
-                                name={`dupAction_${item.id}`}
-                                checked={item.duplicateAction === 'skip'}
-                                onChange={() => updateStagedItem(item.id, { duplicateAction: 'skip' })}
-                                className="text-amber-500 focus:ring-0 w-3 h-3 bg-slate-950 border-slate-800 cursor-pointer"
-                              />
-                              Skip file
+                        <div className="p-2 bg-amber-950/25 border border-amber-900/30 rounded text-[10px] space-y-1.5">
+                          <span className="text-amber-500 font-bold uppercase">Duplicate detected</span>
+                          <div className="flex gap-3">
+                            <label className="flex items-center gap-1 cursor-pointer text-slate-300">
+                              <input type="radio" name={`dupAction_${item.id}`} checked={item.duplicateAction === 'skip'} onChange={() => updateStagedItem(item.id, { duplicateAction: 'skip' })} className="cursor-pointer" />
+                              Skip
                             </label>
-                            <label className="flex items-center gap-1 cursor-pointer text-[10px] font-semibold text-slate-350 select-none">
-                              <input
-                                type="radio"
-                                name={`dupAction_${item.id}`}
-                                checked={item.duplicateAction === 'upload'}
-                                onChange={() => updateStagedItem(item.id, { duplicateAction: 'upload' })}
-                                className="text-emerald-500 focus:ring-0 w-3 h-3 bg-slate-950 border-slate-800 cursor-pointer"
-                              />
+                            <label className="flex items-center gap-1 cursor-pointer text-slate-300">
+                              <input type="radio" name={`dupAction_${item.id}`} checked={item.duplicateAction === 'upload'} onChange={() => updateStagedItem(item.id, { duplicateAction: 'upload' })} className="cursor-pointer" />
                               Upload anyway
                             </label>
                           </div>
                         </div>
                       )}
-
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div>
-                          <label className="block text-[9px] uppercase font-bold tracking-wider text-slate-500 mb-0.5">Unit Code</label>
-                          <input
-                            type="text"
-                            value={item.unique_code}
-                            onChange={(e) => updateStagedItem(item.id, { unique_code: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2 py-0.5 font-mono text-xs uppercase text-indigo-300 focus:outline-none"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] uppercase font-bold tracking-wider text-slate-500 mb-0.5">Min Duration</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={item.duration}
-                            onChange={(e) => updateStagedItem(item.id, { duration: parseFloat(e.target.value) || 1.0 })}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2 py-0.5 font-mono text-xs text-slate-200 focus:outline-none"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div>
-                          <label className="block text-[9px] uppercase font-bold tracking-wider text-slate-500 mb-0.5">Sub-folder</label>
-                          <input
-                            type="text"
-                            value={item.sub_category || ''}
-                            onChange={(e) => updateStagedItem(item.id, { sub_category: e.target.value })}
-                            placeholder="e.g. Cuts, Final"
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2 py-0.5 text-xs text-slate-300 focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] uppercase font-bold tracking-wider text-slate-500 mb-0.5">Upload Status</label>
-                          <select
-                            value={item.status}
-                            onChange={(e) => updateStagedItem(item.id, { status: e.target.value as any })}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2 py-0.5 text-xs text-slate-400 focus:outline-none cursor-pointer"
-                          >
-                            <option value="uploaded">Uploaded</option>
-                            <option value="not uploaded">Not Uploaded</option>
-                          </select>
-                        </div>
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="shrink-0 space-y-2 pt-2 border-t border-slate-850">
-                {errorMsg && (
-                  <div className="p-2.5 bg-red-950/40 border border-red-900/30 rounded text-[11px] text-red-400 flex items-center gap-1">
-                    <AlertCircle className="h-4.5 w-4.5 shrink-0" />
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-                {successMsg && (
-                  <div className="p-2.5 bg-emerald-955/30 border border-emerald-900/30 rounded text-[11px] text-emerald-400 flex items-center gap-1">
-                    <CheckCircle className="h-4.5 w-4.5 shrink-0" />
-                    <span>{successMsg}</span>
-                  </div>
-                )}
+              {/* STEP 2: Folder, subfolder, status — only after files are staged */}
+              <div className="bg-slate-950/50 border border-indigo-500/20 rounded-xl p-4 space-y-4">
+                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Folder className="h-3.5 w-3.5" />
+                  Step 2 · Save location & status
+                </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={clearStagedQueue}
-                    className="py-2.5 border border-slate-800 hover:border-slate-755 text-slate-400 hover:text-white rounded-lg text-xs font-bold uppercase cursor-pointer"
-                  >
-                    Clear All
-                  </button>
-                  <button
-                    type="submit"
-                    className="py-2.5 bg-indigo-650 hover:bg-indigo-600 text-white font-bold rounded-lg text-xs uppercase cursor-pointer shadow-lg shadow-indigo-950/40"
-                  >
-                    Commit Bulk Uploads
-                  </button>
+                {/* Main folder */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Main folder</label>
+                  {!isCreatingNewFolder ? (
+                    <select
+                      value={category}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setIsCreatingNewFolder(true);
+                          setCustomFolder('');
+                        } else {
+                          setCategory(e.target.value);
+                          setSubFolderChoice('none');
+                          setSelectedSubFolder('');
+                        }
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="">— Select saved folder —</option>
+                      {folderOptions.map((fold) => (
+                        <option key={fold} value={fold}>{fold}</option>
+                      ))}
+                      <option value="__NEW__">+ Create new folder...</option>
+                    </select>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customFolder}
+                        onChange={(e) => setCustomFolder(e.target.value)}
+                        placeholder="Type new folder name..."
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setIsCreatingNewFolder(false); setCustomFolder(''); }}
+                        className="text-[10px] text-slate-400 hover:text-white px-2 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {/* Sub-folder */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sub-folder (optional)</label>
+                  <select
+                    value={subFolderChoice === 'new' ? '__NEW__' : subFolderChoice === 'existing' ? selectedSubFolder || '' : 'none'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'none') {
+                        setSubFolderChoice('none');
+                        setSelectedSubFolder('');
+                        setNewSubFolder('');
+                      } else if (val === '__NEW__') {
+                        setSubFolderChoice('new');
+                        setSelectedSubFolder('');
+                      } else {
+                        setSubFolderChoice('existing');
+                        setSelectedSubFolder(val);
+                        setNewSubFolder('');
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    disabled={isCreatingNewFolder && !customFolder.trim()}
+                  >
+                    <option value="none">No sub-folder (save in main folder)</option>
+                    {subFoldersForCategory.map((sub) => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                    <option value="__NEW__">+ Create new sub-folder...</option>
+                  </select>
+                  {subFolderChoice === 'new' && (
+                    <input
+                      type="text"
+                      value={newSubFolder}
+                      onChange={(e) => setNewSubFolder(e.target.value)}
+                      placeholder="Type new sub-folder name..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                      required
+                    />
+                  )}
+                </div>
+
+                {/* Upload status — applies to all staged videos */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Upload status (all files)</label>
+                  <select
+                    value={bulkStatus}
+                    onChange={(e) => setBulkStatus(e.target.value as 'uploaded' | 'not uploaded')}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="uploaded">Uploaded</option>
+                    <option value="not uploaded">Not uploaded</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={clearStagedQueue}
+                  className="py-2.5 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded-lg text-xs font-bold uppercase cursor-pointer"
+                >
+                  Clear all
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs uppercase cursor-pointer shadow-lg shadow-indigo-950/40"
+                >
+                  {loading ? 'Saving...' : `Save ${stagedVideos.length} video${stagedVideos.length === 1 ? '' : 's'}`}
+                </button>
               </div>
             </form>
           ) : (
@@ -1275,17 +1215,6 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
                   className="w-full bg-slate-950 border border-slate-805 rounded-lg px-3 py-2 text-sm text-slate-205 focus:outline-none focus:border-indigo-505"
                 />
               </div>
-
-              {errorMsg && (
-                <div className="p-2.5 bg-red-955/30 border border-red-900/30 rounded text-xs text-red-400">
-                  {errorMsg}
-                </div>
-              )}
-              {successMsg && (
-                <div className="p-2.5 bg-emerald-955/30 border border-emerald-950/30 rounded text-xs text-emerald-400 animate-fade-in">
-                  {successMsg}
-                </div>
-              )}
 
               <button
                 type="submit"
@@ -1413,6 +1342,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
                         <strong className="text-slate-200">{cf.category}</strong>
                         {cf.sub_category && <span className="text-slate-500 text-[10px] block pl-1.5">➔ sub: {cf.sub_category}</span>}
                       </div>
+              {canManage ? (
                       <button
                         type="button"
                         onClick={() => handleDeleteCustomFolder(cf.id)}
@@ -1421,6 +1351,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                    ) : null}
                     </div>
                   ))}
                 </div>

@@ -120,6 +120,8 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
+  const canManageInventory = currentUser.role === 'Admin' || currentUser.role === 'Supervisor';
+
   // Render Login Gate if user is not authenticated
   if (!currentUser) {
     return (
@@ -236,15 +238,20 @@ export default function App() {
 
             <button
               id="nav-tab-inventory"
-              onClick={() => setActiveTab('Inventory')}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wide transition-all border cursor-pointer ${
-                activeTab === 'Inventory'
-                  ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20 font-bold'
-                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-white border-transparent'
+              onClick={() => canManageInventory && setActiveTab('Inventory')}
+              disabled={!canManageInventory}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wide transition-all border ${
+                !canManageInventory
+                  ? 'text-slate-600 border-transparent cursor-not-allowed opacity-60'
+                  : activeTab === 'Inventory'
+                  ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20 font-bold cursor-pointer'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-white border-transparent cursor-pointer'
               }`}
+              title={canManageInventory ? 'Inventory & Dashboard' : 'Admin or Supervisor access required'}
             >
               <Boxes className="h-4 w-4 shrink-0" />
               Inventory & Dashboard
+              {!canManageInventory && <Lock className="h-3 w-3 ml-auto text-slate-600" />}
             </button>
 
             <button
@@ -373,6 +380,7 @@ export default function App() {
                   Video Manager
                 </button>
 
+                {canManageInventory && (
                 <button
                   onClick={() => {
                     setActiveTab('Inventory');
@@ -387,6 +395,7 @@ export default function App() {
                   <Boxes className="h-4 w-4 shrink-0" />
                   Inventory & Dashboard
                 </button>
+                )}
 
                 <button
                   onClick={() => {
@@ -456,7 +465,17 @@ export default function App() {
             )}
 
             {activeTab === 'Inventory' && (
-              <Inventory equipment={equipment} assignments={assignments} onRefresh={fetchAllData} />
+              canManageInventory ? (
+                <Inventory equipment={equipment} assignments={assignments} onRefresh={fetchAllData} />
+              ) : (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center space-y-4">
+                  <Lock className="h-10 w-10 text-slate-600 mx-auto" />
+                  <h3 className="text-lg font-bold text-slate-200">Inventory Access Restricted</h3>
+                  <p className="text-sm text-slate-400 max-w-md mx-auto">
+                    Only Administrators and Supervisors can manage equipment stock, add inventory, or delete equipment profiles.
+                  </p>
+                </div>
+              )
             )}
 
             {activeTab === 'Distribution & Verification' && (

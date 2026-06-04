@@ -13,9 +13,50 @@ import {
   ChevronDown, 
   Users, 
   Boxes,
-  Lock
+  Lock,
+  AlertTriangle
 } from 'lucide-react';
 import { Equipment, Assignment } from '../types';
+
+type OverdueFilter = 'all' | 'overdue' | 'on_time';
+
+function todayISO(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function isAssignmentOverdue(asg: Assignment, today: string): boolean {
+  if (!asg.until_date) return false;
+  return today > asg.until_date;
+}
+
+function OverdueBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded font-bold bg-red-500/15 text-red-400 border border-red-500/35 uppercase tracking-wider ${
+        compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'
+      }`}
+    >
+      <AlertTriangle className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+      Past due
+    </span>
+  );
+}
+
+function ReturnDateLine({ asg, today }: { asg: Assignment; today: string }) {
+  if (!asg.until_date) {
+    return <span>Out since {asg.checkout_date}</span>;
+  }
+  const overdue = isAssignmentOverdue(asg, today);
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span>Out since {asg.checkout_date}</span>
+      <span className={overdue ? 'text-red-400 font-bold' : 'text-amber-500/90'}>
+        · Return by {asg.until_date}
+      </span>
+      {overdue && <OverdueBadge compact />}
+    </span>
+  );
+}
 
 interface DistributionProps {
   equipment: Equipment[];
@@ -41,6 +82,8 @@ export default function DistributionVerification({ equipment, assignments, onRef
   const [checkoutDate, setCheckoutDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
+  const [hasReturnDeadline, setHasReturnDeadline] = useState(false);
+  const [untilDate, setUntilDate] = useState('');
 
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
@@ -49,6 +92,9 @@ export default function DistributionVerification({ equipment, assignments, onRef
   // Layout View Modes: 'person' or 'equipment'
   const [distributionViewMode, setDistributionViewMode] = useState<'person' | 'equipment'>('person');
   const [searchQuery, setSearchQuery] = useState('');
+  const [overdueFilter, setOverdueFilter] = useState<OverdueFilter>('all');
+
+  const today = todayISO();
 
   // Generate suggestions lists for recipient names from historical assignments
   const suggestions = Array.from(
@@ -66,6 +112,14 @@ export default function DistributionVerification({ equipment, assignments, onRef
 
   // Filter assignments with status 'Out'
   const activeCheckouts = assignments.filter(asg => asg.status === 'Out');
+  const overdueCount = activeCheckouts.filter(asg => isAssignmentOverdue(asg, today)).length;
+
+  const displayCheckouts = activeCheckouts.filter(asg => {
+    const overdue = isAssignmentOverdue(asg, today);
+    if (overdueFilter === 'overdue') return overdue;
+    if (overdueFilter === 'on_time') return !overdue;
+    return true;
+  });
 
   // Dynamically find how many units are actually free for any equipment model based on physical dispatch
   const getDynamicAvailableSerials = (eq: Equipment) => {
@@ -125,6 +179,16 @@ export default function DistributionVerification({ equipment, assignments, onRef
       return;
     }
 
+    if (hasReturnDeadline && !untilDate) {
+      setCheckoutError('Please set a return-until date, or uncheck "Limited time dispatch".');
+      return;
+    }
+
+    if (hasReturnDeadline && untilDate < checkoutDate) {
+      setCheckoutError('Return-until date cannot be before the dispatch date.');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch('/api/assignments/checkout', {
@@ -134,6 +198,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
           equipment_id: parseInt(selectedEqId, 10),
           user_name: userName.trim(),
           checkout_date: checkoutDate,
+          ...(hasReturnDeadline && untilDate ? { until_date: untilDate } : {}),
           unit_ids: selectedUnitIds
         })
       });
@@ -151,6 +216,8 @@ export default function DistributionVerification({ equipment, assignments, onRef
       setUserName('');
       setSelectedEqId('');
       setSelectedUnitIds([]);
+      setHasReturnDeadline(false);
+      setUntilDate('');
       onRefresh(); // Refresh parent lists
     } catch (err: any) {
       setCheckoutError(err.message || 'An error occurred during checkout.');
@@ -205,9 +272,9 @@ export default function DistributionVerification({ equipment, assignments, onRef
     }));
   };
 
-  // 1. Group active checkouts by person
+  // 1. Group displayed checkouts by person
   const peopleMap: Record<string, Assignment[]> = {};
-  activeCheckouts.forEach(asg => {
+  displayCheckouts.forEach(asg => {
     const name = asg.user_name?.trim() || 'Unknown Recipient';
     if (!peopleMap[name]) {
       peopleMap[name] = [];
@@ -226,9 +293,9 @@ export default function DistributionVerification({ equipment, assignments, onRef
     return nameMatch || itemMatch;
   }).sort((a, b) => a.localeCompare(b));
 
-  // 2. Group active checkouts by equipment
+  // 2. Group displayed checkouts by equipment
   const eqMap: Record<string, Assignment[]> = {};
-  activeCheckouts.forEach(asg => {
+  displayCheckouts.forEach(asg => {
     const name = asg.equipment_name?.trim() || 'Unknown Equipment';
     if (!eqMap[name]) {
       eqMap[name] = [];
@@ -452,6 +519,44 @@ export default function DistributionVerification({ equipment, assignments, onRef
                 </div>
               </div>
 
+              <div className="space-y-2.5 bg-slate-950/40 border border-slate-800/80 rounded-xl p-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hasReturnDeadline}
+                    onChange={(e) => {
+                      setHasReturnDeadline(e.target.checked);
+                      if (!e.target.checked) setUntilDate('');
+                    }}
+                    className="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-300">Limited time dispatch (set return-until date)</span>
+                </label>
+                {hasReturnDeadline ? (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 font-mono">
+                      Return Until
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <Calendar className="h-4 w-4 text-slate-500" />
+                      </span>
+                      <input
+                        type="date"
+                        value={untilDate}
+                        min={checkoutDate}
+                        onChange={(e) => setUntilDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 [color-scheme:dark]"
+                        required={hasReturnDeadline}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1.5">Equipment is expected back by this date.</p>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-500">No return deadline — only the dispatch date will be recorded.</p>
+                )}
+              </div>
+
               {checkoutError && (
                 <div className="flex gap-2 items-start bg-red-955/40 text-red-400 px-3 py-2.5 border border-red-900/30 rounded-lg text-xs leading-relaxed">
                   <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -531,26 +636,56 @@ export default function DistributionVerification({ equipment, assignments, onRef
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Dynamic Query Filter */}
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                  <Search className="h-4 w-4 text-slate-500" />
-                </span>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={
-                    distributionViewMode === 'person'
-                      ? "Search recipient names, models, or unit serials..."
-                      : "Search equipment names, recipients, or serials..."
-                  }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-505"
-                />
+              {overdueCount > 0 && (
+                <div className="flex items-start gap-2 bg-red-950/35 border border-red-900/45 rounded-xl px-4 py-3 text-xs text-red-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                  <div>
+                    <p className="font-bold text-red-200">
+                      {overdueCount} checkout{overdueCount === 1 ? '' : 's'} past return deadline
+                    </p>
+                    <p className="text-[11px] text-red-400/90 mt-0.5">
+                      Items stay checked out until an Admin or Supervisor manually reclaims them.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <Search className="h-4 w-4 text-slate-500" />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={
+                      distributionViewMode === 'person'
+                        ? "Search recipient names, models, or unit serials..."
+                        : "Search equipment names, recipients, or serials..."
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <select
+                  value={overdueFilter}
+                  onChange={(e) => setOverdueFilter(e.target.value as OverdueFilter)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer sm:min-w-[180px]"
+                >
+                  <option value="all">All active ({activeCheckouts.length})</option>
+                  <option value="overdue">Overdue only ({overdueCount})</option>
+                  <option value="on_time">On time ({activeCheckouts.length - overdueCount})</option>
+                </select>
               </div>
 
+              {displayCheckouts.length === 0 && activeCheckouts.length > 0 && (
+                <div className="text-center py-6 text-xs text-slate-500 bg-slate-950/20 rounded-xl border border-dashed border-slate-800">
+                  No checkouts match the current overdue filter.
+                </div>
+              )}
+
               {/* RENDER VIEW: PERSONS MODE */}
-              {distributionViewMode === 'person' && (
+              {distributionViewMode === 'person' && displayCheckouts.length > 0 && (
                 <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
                   {filteredPeopleNames.length === 0 ? (
                     <div className="text-center py-8 text-xs text-slate-500 bg-slate-950/20 rounded-xl border border-dashed border-slate-800">
@@ -560,6 +695,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
                     filteredPeopleNames.map(personName => {
                       const userAssignments = peopleMap[personName];
                       const isExpanded = !!expandedPersons[personName];
+                      const personOverdueCount = userAssignments.filter(a => isAssignmentOverdue(a, today)).length;
 
                       // Group individual items held by model name
                       const itemSubGroups: Record<string, Assignment[]> = {};
@@ -572,7 +708,9 @@ export default function DistributionVerification({ equipment, assignments, onRef
                       });
 
                       return (
-                        <div key={personName} className="bg-slate-950/25 border border-slate-800/80 rounded-xl overflow-hidden transition-all hover:border-slate-750">
+                        <div key={personName} className={`bg-slate-950/25 border rounded-xl overflow-hidden transition-all hover:border-slate-750 ${
+                          personOverdueCount > 0 ? 'border-red-900/50' : 'border-slate-800/80'
+                        }`}>
                           {/* COLLAPSIBLE INDIVIDUAL HEADER CARD */}
                           <button
                             type="button"
@@ -591,6 +729,9 @@ export default function DistributionVerification({ equipment, assignments, onRef
                               </div>
                             </div>
                             <div className="flex items-center gap-2.5 shrink-0">
+                              {personOverdueCount > 0 && (
+                                <OverdueBadge compact />
+                              )}
                               <span className="text-[9px] bg-indigo-950 border border-indigo-550/30 text-indigo-300 font-bold px-2.5 py-0.5 rounded-full font-mono">
                                 {userAssignments.length} Unit{userAssignments.length === 1 ? '' : 's'}
                               </span>
@@ -614,9 +755,12 @@ export default function DistributionVerification({ equipment, assignments, onRef
                                   const subUnits = itemSubGroups[eqName];
                                   const accordionKey = `${personName}_${eqName}`;
                                   const isSubItemExpanded = !!expandedPersonItems[accordionKey];
+                                  const groupOverdue = subUnits.some(a => isAssignmentOverdue(a, today));
 
                                   return (
-                                    <div key={eqName} className="border border-slate-850 bg-slate-900/40 rounded-lg overflow-hidden">
+                                    <div key={eqName} className={`border bg-slate-900/40 rounded-lg overflow-hidden ${
+                                      groupOverdue ? 'border-red-900/40' : 'border-slate-850'
+                                    }`}>
                                       {/* Sub Header (e.g. Cables - 10 items) */}
                                       <button
                                         type="button"
@@ -624,7 +768,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
                                         className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-slate-900/70 transition-colors text-left text-xs cursor-pointer"
                                       >
                                         <div className="flex items-center gap-2 select-none">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${groupOverdue ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
                                           <span className="text-slate-300 font-bold">{eqName}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
@@ -643,14 +787,20 @@ export default function DistributionVerification({ equipment, assignments, onRef
                                       {isSubItemExpanded && (
                                         <div className="px-3.5 py-3 bg-slate-950/70 border-t border-slate-850/60 space-y-2 animate-fade-in text-[11px]">
                                           <div className="grid grid-cols-1 gap-1.5">
-                                            {subUnits.map(asg => (
-                                              <div key={asg.assignment_id} className="flex items-center justify-between bg-slate-900/80 border border-slate-850 p-2 rounded-lg hover:border-slate-800 transition-colors">
+                                            {subUnits.map(asg => {
+                                              const overdue = isAssignmentOverdue(asg, today);
+                                              return (
+                                              <div key={asg.assignment_id} className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
+                                                overdue
+                                                  ? 'bg-red-950/25 border border-red-900/45'
+                                                  : 'bg-slate-900/80 border border-slate-850 hover:border-slate-800'
+                                              }`}>
                                                 <div className="space-y-0.5 min-w-0 pr-2">
                                                   <span className="px-2 py-0.5 text-[9px] font-mono font-black rounded bg-indigo-950 border border-indigo-500/20 text-indigo-300">
                                                     {asg.unit_id || 'N/A'}
                                                   </span>
                                                   <div className="text-[9px] text-slate-500 font-mono">
-                                                    Out since {asg.checkout_date}
+                                                    <ReturnDateLine asg={asg} today={today} />
                                                   </div>
                                                 </div>
                                                 <button
@@ -668,7 +818,8 @@ export default function DistributionVerification({ equipment, assignments, onRef
                                                   Reclaim
                                                 </button>
                                               </div>
-                                            ))}
+                                            );
+                                            })}
                                           </div>
                                         </div>
                                       )}
@@ -686,7 +837,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
               )}
 
               {/* RENDER VIEW: EQUIPMENT / INVENTORY MODE */}
-              {distributionViewMode === 'equipment' && (
+              {distributionViewMode === 'equipment' && displayCheckouts.length > 0 && (
                 <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
                   {filteredEqNames.length === 0 ? (
                     <div className="text-center py-8 text-xs text-slate-500 bg-slate-950/20 rounded-xl border border-dashed border-slate-800">
@@ -696,9 +847,12 @@ export default function DistributionVerification({ equipment, assignments, onRef
                     filteredEqNames.map(eqName => {
                       const modelAssignments = eqMap[eqName];
                       const isExpanded = !!expandedEquipments[eqName];
+                      const eqOverdueCount = modelAssignments.filter(a => isAssignmentOverdue(a, today)).length;
 
                       return (
-                        <div key={eqName} className="bg-slate-950/25 border border-slate-800/80 rounded-xl overflow-hidden transition-all hover:border-slate-750">
+                        <div key={eqName} className={`bg-slate-950/25 border rounded-xl overflow-hidden transition-all hover:border-slate-750 ${
+                          eqOverdueCount > 0 ? 'border-red-900/50' : 'border-slate-800/80'
+                        }`}>
                           {/* CLICKABLE EQUIPMENT HEADER BLOCK */}
                           <button
                             type="button"
@@ -717,6 +871,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
                               </div>
                             </div>
                             <div className="flex items-center gap-2.5 shrink-0">
+                              {eqOverdueCount > 0 && <OverdueBadge compact />}
                               <span className="text-[9px] bg-emerald-955/40 border border-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full font-mono">
                                 {modelAssignments.length} Out
                               </span>
@@ -736,21 +891,28 @@ export default function DistributionVerification({ equipment, assignments, onRef
                               </span>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                {modelAssignments.map(asg => (
-                                  <div key={asg.assignment_id} className="bg-slate-900/80 border border-slate-850 p-3 rounded-lg flex flex-col justify-between gap-3 hover:border-slate-800 transition-colors text-xs">
+                                {modelAssignments.map(asg => {
+                                  const overdue = isAssignmentOverdue(asg, today);
+                                  return (
+                                  <div key={asg.assignment_id} className={`p-3 rounded-lg flex flex-col justify-between gap-3 transition-colors text-xs ${
+                                    overdue
+                                      ? 'bg-red-950/25 border border-red-900/45'
+                                      : 'bg-slate-900/80 border border-slate-850 hover:border-slate-800'
+                                  }`}>
                                     <div className="space-y-1.5 min-w-0">
-                                      <div className="flex justify-between items-center bg-slate-950 p-1.5 rounded border border-slate-850">
+                                      <div className="flex justify-between items-center gap-2 bg-slate-950 p-1.5 rounded border border-slate-850">
                                         <span className="px-1.5 py-0.5 text-[9px] font-mono font-black bg-indigo-950 border border-indigo-500/20 text-indigo-300 rounded">
                                           {asg.unit_id || 'N/A'}
                                         </span>
-                                        <span className="text-[9px] text-slate-500 font-mono font-bold">Record ID: #{asg.assignment_id}</span>
+                                        {overdue && <OverdueBadge compact />}
+                                        <span className="text-[9px] text-slate-500 font-mono font-bold ml-auto">#{asg.assignment_id}</span>
                                       </div>
                                       <div className="truncate">
                                         <span className="text-slate-450 text-[10px]">Recipient:</span>{' '}
                                         <strong className="text-slate-205 font-bold font-sans text-xs">{asg.user_name}</strong>
                                       </div>
                                       <div className="text-[9px] text-slate-500 font-mono">
-                                        Issued date: {asg.checkout_date}
+                                        <ReturnDateLine asg={asg} today={today} />
                                       </div>
                                     </div>
                                     
@@ -769,7 +931,8 @@ export default function DistributionVerification({ equipment, assignments, onRef
                                       Reclaim Dispatch
                                     </button>
                                   </div>
-                                ))}
+                                );
+                                })}
                               </div>
                             </div>
                           )}

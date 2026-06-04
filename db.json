@@ -1,14 +1,6 @@
 {
   "videos": [
     {
-      "id": 1,
-      "name": "2026 Summer Brand Launch",
-      "unique_code": "VID-SUM-001",
-      "duration": 3.5,
-      "status": "uploaded",
-      "category": "Marketing"
-    },
-    {
       "id": 2,
       "name": "Getting Started with React 19",
       "unique_code": "VID-TUT-052",
@@ -100,6 +92,22 @@
       "user_name": "Lando Norris",
       "checkout_date": "2026-06-02",
       "status": "Returned"
+    },
+    {
+      "assignment_id": 4,
+      "equipment_id": 4,
+      "user_name": "Sagar  BUdal",
+      "checkout_date": "2026-06-04",
+      "status": "Returned",
+      "unit_id": "CANTOR-APUT-01"
+    },
+    {
+      "assignment_id": 5,
+      "equipment_id": 4,
+      "user_name": "Sagar  BUdal",
+      "checkout_date": "2026-06-04",
+      "status": "Returned",
+      "unit_id": "CANTOR-APUT-01"
     }
   ],
   "authorized_users": [
@@ -126,6 +134,12 @@
       "password": "password123",
       "role": "User",
       "name": "Cantor Operator"
+    },
+    {
+      "email": "bishalsaud413@gmail.com",
+      "name": "Bishal Saud",
+      "password": "password123",
+      "role": "Admin"
     }
   ]
 }

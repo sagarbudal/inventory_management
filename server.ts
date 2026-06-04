@@ -28,6 +28,7 @@ interface Assignment {
   equipment_id: number;
   user_name: string;
   checkout_date: string;
+  until_date?: string;
   status: string; // 'Out' | 'Returned'
   unit_id?: string;
 }
@@ -577,10 +578,15 @@ async function startServer() {
   // 6. CHECK OUT SYSTEM
   app.post("/api/assignments/checkout", (req, res) => {
     const db = readDb();
-    const { equipment_id, user_name, checkout_date, unit_id, unit_ids } = req.body;
+    const { equipment_id, user_name, checkout_date, until_date, unit_id, unit_ids } = req.body;
 
     if (!equipment_id || !user_name || !checkout_date) {
       return res.status(400).json({ error: "Missing required parameters" });
+    }
+
+    const trimmedUntil = until_date ? String(until_date).trim() : "";
+    if (trimmedUntil && trimmedUntil < checkout_date) {
+      return res.status(400).json({ error: "Return-until date cannot be before the dispatch date." });
     }
 
     const eqId = parseInt(equipment_id, 10);
@@ -654,6 +660,7 @@ async function startServer() {
         equipment_id: eqId,
         user_name: user_name.trim(),
         checkout_date: checkout_date,
+        ...(trimmedUntil ? { until_date: trimmedUntil } : {}),
         status: "Out",
         unit_id: uid,
       };
