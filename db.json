@@ -12,7 +12,7 @@
       "id": 2,
       "name": "Getting Started with React 19",
       "unique_code": "VID-TUT-052",
-      "duration": 12.0,
+      "duration": 12,
       "status": "not uploaded",
       "category": "Tutorial"
     },
@@ -30,25 +30,51 @@
       "id": 1,
       "equipment_name": "Sony FX3 Cinema Camera",
       "total_quantity": 3,
-      "available_quantity": 2
+      "available_quantity": 2,
+      "unique_prefix": "CANTOR-SONY",
+      "unit_ids": [
+        "CANTOR-SONY-01",
+        "CANTOR-SONY-02",
+        "CANTOR-SONY-03"
+      ]
     },
     {
       "id": 2,
       "equipment_name": "Sennheiser AVX Wireless Mic",
       "total_quantity": 5,
-      "available_quantity": 4
+      "available_quantity": 4,
+      "unique_prefix": "CANTOR-SENN",
+      "unit_ids": [
+        "CANTOR-SENN-01",
+        "CANTOR-SENN-02",
+        "CANTOR-SENN-03",
+        "CANTOR-SENN-04",
+        "CANTOR-SENN-05"
+      ]
     },
     {
       "id": 3,
       "equipment_name": "DJI Ronin RS3 Gimbal",
       "total_quantity": 2,
-      "available_quantity": 1
+      "available_quantity": 2,
+      "unique_prefix": "CANTOR-DJIR",
+      "unit_ids": [
+        "CANTOR-DJIR-01",
+        "CANTOR-DJIR-02"
+      ]
     },
     {
       "id": 4,
       "equipment_name": "Aputure 300d II LED Light",
       "total_quantity": 4,
-      "available_quantity": 4
+      "available_quantity": 4,
+      "unique_prefix": "CANTOR-APUT",
+      "unit_ids": [
+        "CANTOR-APUT-01",
+        "CANTOR-APUT-02",
+        "CANTOR-APUT-03",
+        "CANTOR-APUT-04"
+      ]
     }
   ],
   "assignments": [
@@ -57,14 +83,16 @@
       "equipment_id": 1,
       "user_name": "Carlos Sainz",
       "checkout_date": "2026-06-01",
-      "status": "Out"
+      "status": "Out",
+      "unit_id": "CANTOR-SONY-01"
     },
     {
       "assignment_id": 2,
       "equipment_id": 2,
       "user_name": "Emma Watson",
       "checkout_date": "2026-06-03",
-      "status": "Out"
+      "status": "Out",
+      "unit_id": "CANTOR-SENN-01"
     },
     {
       "assignment_id": 3,
@@ -72,6 +100,32 @@
       "user_name": "Lando Norris",
       "checkout_date": "2026-06-02",
       "status": "Returned"
+    }
+  ],
+  "authorized_users": [
+    {
+      "email": "budalsagar2020@gmail.com",
+      "password": "password123",
+      "role": "Admin",
+      "name": "Sagar Budal"
+    },
+    {
+      "email": "admin@cantordust.com",
+      "password": "cantordust123",
+      "role": "Admin",
+      "name": "Cantor Admin"
+    },
+    {
+      "email": "supervisor@cantordust.com",
+      "password": "password123",
+      "role": "Supervisor",
+      "name": "Cantor Supervisor"
+    },
+    {
+      "email": "user@cantordust.com",
+      "password": "password123",
+      "role": "User",
+      "name": "Cantor Operator"
     }
   ]
 }
