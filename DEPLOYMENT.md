@@ -39,9 +39,13 @@ The API is an **Express (Node.js)** server. Render must use **Node runtime**, no
 |---------|--------|
 | **Root Directory** | `backend` |
 | **Runtime** | Node |
-| **Build Command** | `npm install && npm run build` |
+| **Build Command** | `npm run render-build` |
 | **Start Command** | `npm start` |
 | **Health Check Path** | `/api/health` |
+
+> **Important:** The backend is TypeScript. `npm run render-build` runs `npm install --include=dev && npm run build` so `typescript` and `@types/*` are installed even when `NODE_ENV=production` is set on Render. That produces `dist/index.js` before `npm start` runs.
+
+> **Do not** set Root Directory to the repo root — the build must run inside `backend/` where `backend/package.json` and `tsconfig.json` live.
 
 ### Render environment variables
 
@@ -52,6 +56,8 @@ The API is an **Express (Node.js)** server. Render must use **Node runtime**, no
 | `FRONTEND_URL` | Yes | `https://your-app.vercel.app` |
 | `NODE_VERSION` | Recommended | `22` |
 | `PORT` | Auto | Set by Render — do not override |
+
+**Avoid:** Setting `NODE_ENV=production` on Render *before* the build completes unless you use `npm run render-build` (which installs devDependencies). If the build uses plain `npm install`, TypeScript is skipped and `dist/index.js` is never created.
 
 After deploy, note your URL: `https://YOUR-SERVICE.onrender.com`
 

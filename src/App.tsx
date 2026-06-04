@@ -4,7 +4,7 @@ import {
   LogIn, LogOut, Shield, Mail, Lock, CheckCircle2, User 
 } from 'lucide-react';
 import { Video, Equipment, Assignment, SidebarTab } from './types';
-import { apiUrl } from './api';
+import { apiUrl, isMisconfiguredProductionApi } from './api';
 import VideoManager from './components/VideoManager';
 import Inventory from './components/Inventory';
 import DistributionVerification from './components/DistributionVerification';
@@ -83,6 +83,14 @@ export default function App() {
       return;
     }
 
+    if (isMisconfiguredProductionApi()) {
+      setAuthError(
+        'API is not configured for production. Set VITE_API_URL to your Render backend URL in Vercel and redeploy.'
+      );
+      setAuthLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
@@ -95,6 +103,11 @@ export default function App() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        if (response.status === 405) {
+          throw new Error(
+            'Login request hit the frontend host (405). Set VITE_API_URL on Vercel to your Render backend URL and redeploy.'
+          );
+        }
         throw new Error(data.error || 'Login attempt failed.');
       }
 
@@ -109,7 +122,9 @@ export default function App() {
     } catch (err: any) {
       const message =
         err.message === 'Failed to fetch'
-          ? 'Cannot reach the API server. Start the backend: cd backend && npm run dev'
+          ? import.meta.env.PROD
+            ? 'Cannot reach the API server. Check that your Render backend is running and VITE_API_URL is set correctly on Vercel.'
+            : 'Cannot reach the API server. Start the backend: cd backend && npm run dev'
           : err.message || 'An error occurred during authentication.';
       setAuthError(message);
     } finally {
@@ -181,6 +196,12 @@ export default function App() {
                 />
               </div>
             </div>
+
+            {isMisconfiguredProductionApi() && (
+              <div className="p-3 bg-amber-950/40 text-amber-200 border border-amber-900/40 rounded-lg text-xs leading-relaxed">
+                Production API URL is missing. Set <span className="font-mono">VITE_API_URL</span> on Vercel to your Render backend URL and redeploy.
+              </div>
+            )}
 
             {authError && (
               <div className="p-3 bg-red-950/40 text-red-450 border border-red-900/30 rounded-lg text-xs leading-relaxed text-red-400">
