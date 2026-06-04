@@ -4,6 +4,7 @@ import {
   Trash2, ChevronLeft, ChevronRight, X, Lock, Info 
 } from 'lucide-react';
 import { Equipment, Assignment } from '../types';
+import { apiUrl } from '../api';
 
 interface InventoryProps {
   equipment: Equipment[];
@@ -94,7 +95,7 @@ export default function Inventory({ equipment, assignments, onRefresh }: Invento
 
     setLoading(true);
     try {
-      const response = await fetch('/api/equipment', {
+      const response = await fetch(apiUrl('/api/equipment'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,7 +138,7 @@ export default function Inventory({ equipment, assignments, onRefresh }: Invento
     setLoading(true);
     setSelectedEquipmentForModal(null);
     try {
-      const response = await fetch(`/api/equipment/${id}`, {
+      const response = await fetch(apiUrl(`/api/equipment/${id}`), {
         method: 'DELETE'
       });
 
@@ -168,7 +169,7 @@ export default function Inventory({ equipment, assignments, onRefresh }: Invento
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/equipment/${equipmentId}/unit/${encodeURIComponent(unitId)}`, {
+      const response = await fetch(apiUrl(`/api/equipment/${equipmentId}/unit/${encodeURIComponent(unitId)}`), {
         method: 'DELETE'
       });
 

@@ -4,6 +4,7 @@ import {
   UserCheck, Users, Search, AlertCircle, CheckCircle 
 } from 'lucide-react';
 import { AuthorizedUser } from '../types';
+import { apiUrl } from '../api';
 
 interface UserAccessPanelProps {
   onRefreshData?: () => void;
@@ -35,7 +36,7 @@ export default function UserAccessPanel({ onRefreshData }: UserAccessPanelProps)
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch(apiUrl('/api/users'));
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -71,7 +72,7 @@ export default function UserAccessPanel({ onRefreshData }: UserAccessPanelProps)
     }
 
     try {
-      const res = await fetch('/api/users/add', {
+      const res = await fetch(apiUrl('/api/users/add'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,7 +114,7 @@ export default function UserAccessPanel({ onRefreshData }: UserAccessPanelProps)
     setSuccessMsg(null);
 
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch(apiUrl('/api/users'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: targetEmail })

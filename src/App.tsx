@@ -4,6 +4,7 @@ import {
   LogIn, LogOut, Shield, Mail, Lock, CheckCircle2, User 
 } from 'lucide-react';
 import { Video, Equipment, Assignment, SidebarTab } from './types';
+import { apiUrl } from './api';
 import VideoManager from './components/VideoManager';
 import Inventory from './components/Inventory';
 import DistributionVerification from './components/DistributionVerification';
@@ -42,9 +43,9 @@ export default function App() {
     if (!currentUser) return; // Only fetch if authenticated
     try {
       const [vRes, eRes, aRes] = await Promise.all([
-        fetch('/api/videos'),
-        fetch('/api/equipment'),
-        fetch('/api/assignments')
+        fetch(apiUrl('/api/videos')),
+        fetch(apiUrl('/api/equipment')),
+        fetch(apiUrl('/api/assignments'))
       ]);
 
       if (vRes.ok && eRes.ok && aRes.ok) {
@@ -66,6 +67,8 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       fetchAllData();
+    } else {
+      setLoading(false);
     }
   }, [currentUser]);
 
@@ -81,7 +84,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,7 +93,7 @@ export default function App() {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Login attempt failed.');
       }
@@ -104,7 +107,11 @@ export default function App() {
       localStorage.setItem('currentUser', JSON.stringify(sessionUser));
       setCurrentUser(sessionUser);
     } catch (err: any) {
-      setAuthError(err.message || 'An error occurred during authentication.');
+      const message =
+        err.message === 'Failed to fetch'
+          ? 'Cannot reach the API server. Start the backend: cd backend && npm run dev'
+          : err.message || 'An error occurred during authentication.';
+      setAuthError(message);
     } finally {
       setAuthLoading(false);
     }
@@ -119,8 +126,6 @@ export default function App() {
     setAssignments([]);
     setMobileMenuOpen(false);
   };
-
-  const canManageInventory = currentUser.role === 'Admin' || currentUser.role === 'Supervisor';
 
   // Render Login Gate if user is not authenticated
   if (!currentUser) {
@@ -206,6 +211,8 @@ export default function App() {
       </div>
     );
   }
+
+  const canManageInventory = currentUser.role === 'Admin' || currentUser.role === 'Supervisor';
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-slate-950 flex flex-col md:flex-row font-sans text-slate-100 relative" id="main-application-frame">
@@ -498,7 +505,7 @@ export default function App() {
             <span>DB Schema v1.1.2</span>
             <span className="text-emerald-500 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block pointer-events-none"></span>
-              Secure Auth & SQL Active
+              Secure Auth & MongoDB Active
             </span>
             <span className="text-slate-550 truncate hidden sm:inline">Logged: {currentUser.email} ({currentUser.role})</span>
           </div>

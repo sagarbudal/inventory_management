@@ -17,6 +17,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Equipment, Assignment } from '../types';
+import { apiUrl } from '../api';
 
 type OverdueFilter = 'all' | 'overdue' | 'on_time';
 
@@ -191,7 +192,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
 
     setLoading(true);
     try {
-      const response = await fetch('/api/assignments/checkout', {
+      const response = await fetch(apiUrl('/api/assignments/checkout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -233,7 +234,7 @@ export default function DistributionVerification({ equipment, assignments, onRef
     }
 
     try {
-      const response = await fetch(`/api/assignments/reclaim/${assignmentId}`, {
+      const response = await fetch(apiUrl(`/api/assignments/reclaim/${assignmentId}`), {
         method: 'POST'
       });
 

@@ -6,6 +6,7 @@ import {
   Lock, Shield, Video, Layers
 } from 'lucide-react';
 import { Video as VideoType } from '../types';
+import { apiUrl } from '../api';
 
 interface VideoManagerProps {
   videos: VideoType[];
@@ -57,10 +58,10 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
     ].filter(Boolean))
   ).sort((a, b) => a.localeCompare(b));
 
-  // Load custom manual folders from db.json
+  // Load custom manual folders from the API (MongoDB)
   const fetchCustomFolders = async () => {
     try {
-      const res = await fetch('/api/custom-folders');
+      const res = await fetch(apiUrl('/api/custom-folders'));
       if (res.ok) {
         const data = await res.json();
         setCustomFoldersList(data);
@@ -346,7 +347,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
     }
 
     try {
-      const res = await fetch('/api/custom-folders', {
+      const res = await fetch(apiUrl('/api/custom-folders'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -376,7 +377,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
     setFolderError(null);
     setFolderSuccess(null);
     try {
-      const res = await fetch(`/api/custom-folders/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/custom-folders/${id}`), { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to remove custom folder.');
       setFolderSuccess('✓ Custom folder reference removed.');
@@ -415,7 +416,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
         finalCode = `${finalCode}-DUP-${sameBasenameCount + 1}`;
       }
 
-      const res = await fetch('/api/videos', {
+      const res = await fetch(apiUrl('/api/videos'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -506,7 +507,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
           assignedCode = `${assignedCode}-${matchingCount + 1}`;
         }
 
-        const res = await fetch('/api/videos', {
+        const res = await fetch(apiUrl('/api/videos'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -561,7 +562,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
         const currentVideo = videos.find(v => v.id === id);
         if (!currentVideo) continue;
 
-        const res = await fetch(`/api/videos/${id}`, {
+        const res = await fetch(apiUrl(`/api/videos/${id}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -603,7 +604,7 @@ export default function VideoManager({ videos, onRefresh }: VideoManagerProps) {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/videos/bulk-delete', {
+      const res = await fetch(apiUrl('/api/videos/bulk-delete'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedVideoIds })
