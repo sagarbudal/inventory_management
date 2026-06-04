@@ -8,6 +8,7 @@ import { connectMongo } from "./db/connect.js";
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
+const HOST = process.env.HOST || "0.0.0.0";
 const mongoUri = process.env.MONGODB_URI;
 
 if (!mongoUri) {
@@ -19,14 +20,18 @@ const MONGODB_URI: string = mongoUri;
 
 const frontendOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
   .split(",")
-  .map((o) => o.trim())
+  .map((o) => o.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
 const app = express();
 
 app.use(
   cors({
-    origin: frontendOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (frontendOrigins.includes(origin)) return callback(null, true);
+      return callback(null, false);
+    },
     credentials: true,
   })
 );
@@ -46,8 +51,8 @@ async function start() {
 
     await runSeed();
 
-    app.listen(PORT, () => {
-      console.log(`[Backend] API server running at http://localhost:${PORT}`);
+    app.listen(PORT, HOST, () => {
+      console.log(`[Backend] API server running on ${HOST}:${PORT}`);
       console.log(`[Backend] CORS allowed for: ${frontendOrigins.join(", ")}`);
     });
   } catch (err) {
