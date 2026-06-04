@@ -1,0 +1,8 @@
+{
+  "name": "Video & Equipment Manager",
+  "description": "A Streamlit-inspired application with local SQL-like persistence to manage video metadata and equipment inventory distributions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "videos": [
+    {
+      "id": 1,
+      "name": "2026 Summer Brand Launch",
+      "unique_code": "VID-SUM-001",
+      "duration": 3.5,
+      "status": "uploaded",
+      "category": "Marketing"
+    },
+    {
+      "id": 2,
+      "name": "Getting Started with React 19",
+      "unique_code": "VID-TUT-052",
+      "duration": 12.0,
+      "status": "not uploaded",
+      "category": "Tutorial"
+    },
+    {
+      "id": 3,
+      "name": "Behind the Scenes: Tokyo Vlog",
+      "unique_code": "VID-VLO-011",
+      "duration": 8.4,
+      "status": "uploaded",
+      "category": "Vlog"
+    }
+  ],
+  "equipment": [
+    {
+      "id": 1,
+      "equipment_name": "Sony FX3 Cinema Camera",
+      "total_quantity": 3,
+      "available_quantity": 2
+    },
+    {
+      "id": 2,
+      "equipment_name": "Sennheiser AVX Wireless Mic",
+      "total_quantity": 5,
+      "available_quantity": 4
+    },
+    {
+      "id": 3,
+      "equipment_name": "DJI Ronin RS3 Gimbal",
+      "total_quantity": 2,
+      "available_quantity": 1
+    },
+    {
+      "id": 4,
+      "equipment_name": "Aputure 300d II LED Light",
+      "total_quantity": 4,
+      "available_quantity": 4
+    }
+  ],
+  "assignments": [
+    {
+      "assignment_id": 1,
+      "equipment_id": 1,
+      "user_name": "Carlos Sainz",
+      "checkout_date": "2026-06-01",
+      "status": "Out"
+    },
+    {
+      "assignment_id": 2,
+      "equipment_id": 2,
+      "user_name": "Emma Watson",
+      "checkout_date": "2026-06-03",
+      "status": "Out"
+    },
+    {
+      "assignment_id": 3,
+      "equipment_id": 3,
+      "user_name": "Lando Norris",
+      "checkout_date": "2026-06-02",
+      "status": "Returned"
+    }
+  ]
+}
