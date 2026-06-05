@@ -8,7 +8,6 @@ services:
     rootDir: backend
     buildCommand: npm install && npm run build
     startCommand: npm start
-    plan: free
     envVars:
       - key: NODE_ENV
         value: production
@@ -39,7 +38,6 @@ services:
     rootDir: .                      # root of the repo
     buildCommand: npm install && npm run build
     staticPublishPath: dist
-    plan: free
     routes:
       # Send all routes to index.html so React Router works
       - type: rewrite
