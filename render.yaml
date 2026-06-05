@@ -1,20 +1,54 @@
-# Render Blueprint — Node.js/Express API (NOT FastAPI)
-# Docs: https://render.com/docs/blueprint-spec
 services:
+  # ─────────────────────────────────────────
+  # BACKEND — Node.js / Express API
+  # ─────────────────────────────────────────
   - type: web
-    name: inventory-management-api
+    name: inventory-management-backend
     runtime: node
     rootDir: backend
-    plan: free
-    buildCommand: npm run render-build
+    buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    plan: free
     envVars:
-      - key: NODE_VERSION
-        value: "22"
-      - key: MONGODB_URI
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      # ── Database ──────────────────────────
+      # Paste your actual DB connection string in the Render dashboard
+      - key: DATABASE_URL
         sync: false
-      - key: MONGODB_URI_DIRECT
-        sync: false
-      - key: FRONTEND_URL
-        sync: false
+      # ── Auth / JWT ────────────────────────
+      - key: JWT_SECRET
+        generateValue: true        # Render auto-generates a secure random value
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # ── CORS — point at your frontend URL ─
+      - key: CLIENT_URL
+        fromService:
+          name: inventory-management-frontend
+          type: web
+          property: host
+
+  # ─────────────────────────────────────────
+  # FRONTEND — Vite / React (Static Site)
+  # ─────────────────────────────────────────
+  - type: web
+    name: inventory-management-frontend
+    runtime: static
+    rootDir: .                      # root of the repo
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    plan: free
+    routes:
+      # Send all routes to index.html so React Router works
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # ── API base URL — points to the backend service above ──
+      - key: VITE_API_URL
+        fromService:
+          name: inventory-management-backend
+          type: web
+          property: host
